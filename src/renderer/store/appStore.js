@@ -65,6 +65,7 @@ const useAppStore = create((set, get) => ({
     prevCursors: [],             // stack of previous cursor URLs for "Back" navigation
     cursorParamName: null,       // e.g. 'since_id', 'cursor', 'after'
     nextPageUrl: null,           // full URL for next page (e.g., Workable's paging.next)
+    currentPageEntry: null,      // the URL/cursor that was used to fetch the current page (for prev stack)
   },
   setPagination: (updates) => set((state) => ({
     pagination: { ...state.pagination, ...updates }
@@ -73,7 +74,7 @@ const useAppStore = create((set, get) => ({
     pagination: {
       currentPage: 1, perPage: 10, pageParamName: 'page', perPageParamName: 'per_page',
       hasDetected: false, mode: 'none', nextCursor: null, prevCursors: [],
-      cursorParamName: null, nextPageUrl: null
+      cursorParamName: null, nextPageUrl: null, currentPageEntry: null
     }
   }),
 
@@ -123,7 +124,7 @@ const useAppStore = create((set, get) => ({
     pagination: {
       currentPage: 1, perPage: 10, pageParamName: 'page', perPageParamName: 'per_page',
       hasDetected: false, mode: 'none', nextCursor: null, prevCursors: [],
-      cursorParamName: null, nextPageUrl: null
+      cursorParamName: null, nextPageUrl: null, currentPageEntry: null
     },
     rateLimit: {
       delayMs: 500, retryOn429: true, maxRetries: 3, retryCount: 0,

@@ -327,14 +327,26 @@ async function executeFetch(pageOrDirection) {
   if (pagination.mode === 'cursor') {
     // CURSOR-BASED PAGINATION
     if (pageOrDirection === 'next' && pagination.nextPageUrl) {
-      // Use the full next page URL from the API response
+      // Going next: push the CURRENT page's entry to prev stack before navigating
+      const newPrevStack = [...pagination.prevCursors];
+      if (pagination.currentPageEntry) {
+        newPrevStack.push(pagination.currentPageEntry);
+      }
       requestConfig = {
         ...parsedRequest,
         url: pagination.nextPageUrl,
         params: {} // URL already contains all params
       };
+      setPagination({
+        currentPage: pagination.currentPage + 1,
+        prevCursors: newPrevStack,
+        currentPageEntry: { url: pagination.nextPageUrl }
+      });
     } else if (pageOrDirection === 'next' && pagination.nextCursor && pagination.cursorParamName) {
-      // Use cursor token as a query param
+      const newPrevStack = [...pagination.prevCursors];
+      if (pagination.currentPageEntry) {
+        newPrevStack.push(pagination.currentPageEntry);
+      }
       requestConfig = {
         ...parsedRequest,
         params: {
@@ -343,8 +355,13 @@ async function executeFetch(pageOrDirection) {
           [pagination.perPageParamName]: String(pagination.perPage)
         }
       };
+      setPagination({
+        currentPage: pagination.currentPage + 1,
+        prevCursors: newPrevStack,
+        currentPageEntry: { cursor: pagination.nextCursor }
+      });
     } else if (pageOrDirection === 'prev' && pagination.prevCursors.length > 0) {
-      // Go back to previous cursor
+      // Going prev: pop from prev stack to get the page entry to re-fetch
       const prevStack = [...pagination.prevCursors];
       const prevEntry = prevStack.pop();
 
@@ -372,7 +389,6 @@ async function executeFetch(pageOrDirection) {
             [pagination.perPageParamName]: String(pagination.perPage)
           }
         };
-        // Remove any cursor param from first page request
         if (pagination.cursorParamName && requestConfig.params[pagination.cursorParamName]) {
           delete requestConfig.params[pagination.cursorParamName];
         }
@@ -380,10 +396,12 @@ async function executeFetch(pageOrDirection) {
 
       setPagination({
         prevCursors: prevStack,
-        currentPage: Math.max(1, pagination.currentPage - 1)
+        currentPage: Math.max(1, pagination.currentPage - 1),
+        currentPageEntry: prevEntry || null
       });
     } else {
       // First page - use original URL with limit param
+      const firstPageEntry = { url: parsedRequest.url + (parsedRequest.params ? '?' + new URLSearchParams(parsedRequest.params).toString() : '') };
       requestConfig = {
         ...parsedRequest,
         params: {
@@ -391,6 +409,7 @@ async function executeFetch(pageOrDirection) {
           [pagination.perPageParamName]: String(pagination.perPage)
         }
       };
+      setPagination({ currentPageEntry: firstPageEntry, currentPage: 1, prevCursors: [] });
     }
   } else if (pagination.mode === 'page' && pagination.hasDetected) {
     // PAGE-NUMBER BASED PAGINATION
@@ -456,13 +475,6 @@ async function executeFetch(pageOrDirection) {
         const cursorInfo = detectCursorFromResponse(result.data);
 
         if (cursorInfo) {
-          // Build current page's cursor entry for "prev" stack
-          const currentEntry = pagination.nextPageUrl
-            ? { url: pagination.nextPageUrl }
-            : pagination.nextCursor
-              ? { cursor: pagination.nextCursor }
-              : { url: parsedRequest.url + (parsedRequest.params ? '?' + new URLSearchParams(parsedRequest.params).toString() : '') };
-
           const newState = {
             hasDetected: true,
             mode: 'cursor',
@@ -474,38 +486,15 @@ async function executeFetch(pageOrDirection) {
           } else {
             newState.nextCursor = cursorInfo.value;
             newState.nextPageUrl = null;
-            // Try to detect the cursor param name from the URL
             if (!pagination.cursorParamName) {
               newState.cursorParamName = guessCursorParamName(cursorInfo.path);
             }
-          }
-
-          if (pageOrDirection === 'next') {
-            newState.currentPage = pagination.currentPage + 1;
-            newState.prevCursors = [...pagination.prevCursors, currentEntry];
-          } else if (pageOrDirection !== 'prev') {
-            // First fetch - reset cursors
-            newState.currentPage = 1;
-            newState.prevCursors = [];
           }
 
           setPagination(newState);
         } else if (pagination.mode === 'cursor' && !cursorInfo) {
           // No cursor found in response - we're on the last page
           setPagination({ nextCursor: null, nextPageUrl: null });
-          if (pageOrDirection === 'next') {
-            const currentEntry = pagination.nextPageUrl
-              ? { url: pagination.nextPageUrl }
-              : pagination.nextCursor
-                ? { cursor: pagination.nextCursor }
-                : null;
-            if (currentEntry) {
-              setPagination({
-                currentPage: pagination.currentPage + 1,
-                prevCursors: [...pagination.prevCursors, currentEntry]
-              });
-            }
-          }
         }
       }
 
