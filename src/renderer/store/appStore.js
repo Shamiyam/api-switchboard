@@ -45,7 +45,8 @@ const useAppStore = create((set, get) => ({
     n8nWebhookUrl: '',
     googleClientId: '',
     googleClientSecret: '',
-    googleScriptId: ''
+    googleScriptId: '',
+    googleWebAppUrl: ''
   },
   setConfigValue: (key, value) => set((state) => ({
     config: { ...state.config, [key]: value }
@@ -100,6 +101,39 @@ const useAppStore = create((set, get) => ({
     rateLimit: {
       delayMs: 500, retryOn429: true, maxRetries: 3, retryCount: 0,
       lastRequestTime: 0, rateLimitInfo: null, isWaiting: false, waitUntil: null
+    }
+  }),
+
+  // ── Bulk Transport State ──
+  showBulkTransport: false,
+  setShowBulkTransport: (val) => set({ showBulkTransport: val }),
+  bulkTransport: {
+    isRunning: false,
+    isPaused: false,
+    isCancelled: false,
+    mode: 'all',           // 'all' | 'pages' | 'dateRange'
+    maxPages: 10,           // for 'pages' mode
+    dateFrom: '',           // for 'dateRange' mode (ISO string)
+    dateTo: '',             // for 'dateRange' mode (ISO string)
+    dateField: '',          // which field to filter by (e.g. 'created_at')
+    // Progress tracking
+    currentPage: 0,
+    totalPagesSent: 0,
+    totalItemsSent: 0,
+    errors: [],
+    log: [],               // array of { page, items, status, timestamp }
+    startedAt: null,
+    completedAt: null,
+  },
+  setBulkTransport: (updates) => set((state) => ({
+    bulkTransport: { ...state.bulkTransport, ...updates }
+  })),
+  resetBulkTransport: () => set({
+    bulkTransport: {
+      isRunning: false, isPaused: false, isCancelled: false,
+      mode: 'all', maxPages: 10, dateFrom: '', dateTo: '', dateField: '',
+      currentPage: 0, totalPagesSent: 0, totalItemsSent: 0,
+      errors: [], log: [], startedAt: null, completedAt: null,
     }
   }),
 

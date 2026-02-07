@@ -3,36 +3,92 @@
  * Google Apps Script Receiver for API Switchboard
  * ═══════════════════════════════════════════════════════════════
  *
- * SETUP INSTRUCTIONS:
+ * SETUP INSTRUCTIONS (Web App Mode - Recommended):
  * 1. Open your Google Sheet
  * 2. Go to Extensions > Apps Script
  * 3. Paste this entire code into the script editor
- * 4. Save and deploy as API executable (not web app)
- * 5. Copy the Script ID from Project Settings
- * 6. Enter the Script ID in API Switchboard settings
+ * 4. Click Deploy > New Deployment
+ * 5. Select type: "Web app"
+ * 6. Set "Execute as": Me
+ * 7. Set "Who has access": Anyone
+ * 8. Click Deploy and copy the Web App URL
+ * 9. Paste the URL into API Switchboard's Bulk Transport modal
  *
- * REQUIRED:
- * - Enable "Apps Script API" in your GCP project
- * - The Google account used in Switchboard must have edit access to the Sheet
+ * That's it! No GCP project or OAuth credentials needed.
  * ═══════════════════════════════════════════════════════════════
  */
 
 /**
+ * Web App endpoint - receives POST requests from API Switchboard.
+ * This is the primary method used by Bulk Transport.
+ *
+ * @param {Object} e - The event object from the web app
+ * @returns {ContentService.TextOutput} JSON response
+ */
+function doPost(e) {
+  try {
+    var jsonString = e.postData.contents;
+    var result = receiveData(jsonString);
+    return ContentService
+      .createTextOutput(JSON.stringify({ success: true, result: result }))
+      .setMimeType(ContentService.MimeType.JSON);
+  } catch (err) {
+    return ContentService
+      .createTextOutput(JSON.stringify({ success: false, error: err.message }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+/**
+ * Web App GET endpoint - health check / info.
+ * Accepts optional ?sheet=SheetName query param to check a specific sheet.
+ */
+function doGet(e) {
+  var sheetName = (e && e.parameter && e.parameter.sheet) || "API_Data";
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(sheetName);
+  var rowCount = sheet ? sheet.getLastRow() : 0;
+  return ContentService
+    .createTextOutput(JSON.stringify({
+      status: "ok",
+      message: "API Switchboard receiver is ready",
+      sheet: sheetName,
+      rows: rowCount,
+      supportsSheetName: true
+    }))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+/**
  * Main receiver function called by API Switchboard.
- * Parses incoming JSON data and writes it to the active sheet.
+ * Parses incoming JSON data and writes it to a sheet.
+ *
+ * Supports two payload formats:
+ *   1. Envelope: { sheetName: "Custom_Sheet", data: [...] }  → writes to named sheet
+ *   2. Raw:      [...] or {...}                               → writes to "API_Data" (default)
  *
  * @param {string} jsonString - Stringified JSON from the API response
  * @returns {string} Status message
  */
 function receiveData(jsonString) {
   try {
-    var data = JSON.parse(jsonString);
+    var parsed = JSON.parse(jsonString);
+
+    // Detect envelope format: { sheetName: "...", data: ... }
+    var sheetName = "API_Data";
+    var data = parsed;
+
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+        && 'data' in parsed && 'sheetName' in parsed) {
+      sheetName = String(parsed.sheetName || "API_Data").substring(0, 100);
+      data = parsed.data;
+    }
+
     var ss = SpreadsheetApp.getActiveSpreadsheet();
-    var sheet = ss.getSheetByName("API_Data");
+    var sheet = ss.getSheetByName(sheetName);
 
     // Create the sheet if it doesn't exist
     if (!sheet) {
-      sheet = ss.insertSheet("API_Data");
+      sheet = ss.insertSheet(sheetName);
     }
 
     // Determine if data is an array of objects or a single object
@@ -132,23 +188,27 @@ function writeObjectData(sheet, dataObj) {
 }
 
 /**
- * Utility: Clear all data from the API_Data sheet (keeps headers).
+ * Utility: Clear all data from a sheet (keeps headers).
  * Call this manually or from Switchboard if needed.
+ * @param {string} [sheetName="API_Data"] - Name of the sheet to clear
  */
-function clearData() {
-  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("API_Data");
+function clearData(sheetName) {
+  sheetName = sheetName || "API_Data";
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(sheetName);
   if (sheet && sheet.getLastRow() > 1) {
     sheet.deleteRows(2, sheet.getLastRow() - 1);
-    return "Cleared all data rows";
+    return "Cleared all data rows from " + sheetName;
   }
   return "Nothing to clear";
 }
 
 /**
  * Utility: Get the current row count.
+ * @param {string} [sheetName="API_Data"] - Name of the sheet to check
  */
-function getRowCount() {
-  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("API_Data");
+function getRowCount(sheetName) {
+  sheetName = sheetName || "API_Data";
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(sheetName);
   if (!sheet) return 0;
   return sheet.getLastRow();
 }

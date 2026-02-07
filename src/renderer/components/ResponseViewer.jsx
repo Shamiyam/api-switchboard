@@ -3,9 +3,9 @@ import useAppStore from '../store/appStore';
 
 function ResponseViewer() {
   const {
-    apiResponse, executeError, setShowExportModal, setActiveTab,
+    apiResponse, executeError, setShowExportModal, setShowBulkTransport, setActiveTab,
     pagination, setPagination, _fetchPageFn, isExecuting,
-    rateLimit
+    rateLimit, parsedRequest
   } = useAppStore();
 
   const [viewMode, setViewMode] = useState('pretty'); // 'pretty' | 'raw' | 'headers'
@@ -156,8 +156,18 @@ function ResponseViewer() {
             onClick={() => setShowExportModal(true)}
             disabled={!success}
           >
-            Export / Save to Cloud
+            Export Page
           </button>
+          {pagination.hasDetected && (
+            <button
+              className="btn btn-small btn-primary"
+              onClick={() => setShowBulkTransport(true)}
+              disabled={!success || !parsedRequest}
+              title="Fetch all pages and transport to Google Sheets or n8n"
+            >
+              Bulk Transport All
+            </button>
+          )}
         </div>
       </div>
 
