@@ -4,7 +4,8 @@ import useAppStore from '../store/appStore';
 function ResponseViewer() {
   const {
     apiResponse, executeError, setShowExportModal, setActiveTab,
-    pagination, setPagination, _fetchPageFn, isExecuting
+    pagination, setPagination, _fetchPageFn, isExecuting,
+    rateLimit
   } = useAppStore();
 
   const [viewMode, setViewMode] = useState('pretty'); // 'pretty' | 'raw' | 'headers'
@@ -44,8 +45,20 @@ function ResponseViewer() {
   const dataString = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
   const dataSize = new Blob([dataString]).size;
 
-  // Count items if array
-  const itemCount = Array.isArray(data) ? data.length : null;
+  // Count items - check both top-level array and nested data arrays
+  let itemCount = null;
+  if (Array.isArray(data)) {
+    itemCount = data.length;
+  } else if (data && typeof data === 'object') {
+    // Look for the main data array in common patterns
+    const arrayKeys = ['candidates', 'data', 'results', 'items', 'records', 'entries', 'users', 'list', 'rows'];
+    for (const key of arrayKeys) {
+      if (Array.isArray(data[key])) {
+        itemCount = data[key].length;
+        break;
+      }
+    }
+  }
 
   // Simple JSON path search
   const filteredData = searchTerm
@@ -53,6 +66,28 @@ function ResponseViewer() {
     : data;
 
   // Pagination handlers
+  const isCursorMode = pagination.mode === 'cursor';
+
+  const goToNext = () => {
+    if (_fetchPageFn) {
+      if (isCursorMode) {
+        _fetchPageFn('next');
+      } else {
+        _fetchPageFn(pagination.currentPage + 1);
+      }
+    }
+  };
+
+  const goToPrev = () => {
+    if (_fetchPageFn) {
+      if (isCursorMode) {
+        _fetchPageFn('prev');
+      } else {
+        _fetchPageFn(pagination.currentPage - 1);
+      }
+    }
+  };
+
   const goToPage = (page) => {
     if (_fetchPageFn && page >= 1) {
       _fetchPageFn(page);
@@ -60,12 +95,28 @@ function ResponseViewer() {
   };
 
   const handlePerPageChange = (newPerPage) => {
-    setPagination({ perPage: newPerPage, currentPage: 1 });
-    // executeFetch reads fresh state via getState(), so no delay needed
+    setPagination({ perPage: newPerPage, currentPage: 1, nextCursor: null, nextPageUrl: null, prevCursors: [] });
     if (_fetchPageFn) {
-      _fetchPageFn(1);
+      // For cursor mode, just refetch first page. For page mode, refetch page 1.
+      setTimeout(() => {
+        if (isCursorMode) {
+          _fetchPageFn(undefined); // refetch first page
+        } else {
+          _fetchPageFn(1);
+        }
+      }, 50);
     }
   };
+
+  // Can we go to the next page?
+  const hasNextPage = isCursorMode
+    ? !!(pagination.nextPageUrl || pagination.nextCursor)
+    : (itemCount === null || itemCount >= pagination.perPage);
+
+  // Can we go to the previous page?
+  const hasPrevPage = isCursorMode
+    ? pagination.prevCursors.length > 0
+    : pagination.currentPage > 1;
 
   return (
     <div className="panel response-panel full-width">
@@ -110,38 +161,69 @@ function ResponseViewer() {
         </div>
       </div>
 
+      {/* Rate Limit Info Bar */}
+      {(rateLimit.rateLimitInfo || rateLimit.isWaiting) && (
+        <div className="rate-limit-info-bar">
+          {rateLimit.isWaiting && (
+            <span className="rate-limit-waiting pulse">
+              Rate limited - waiting {rateLimit.retryCount > 0 ? `(retry ${rateLimit.retryCount})` : ''}...
+            </span>
+          )}
+          {rateLimit.rateLimitInfo && (
+            <div className="rate-limit-stats">
+              {rateLimit.rateLimitInfo.remaining !== undefined && (
+                <span className={`rate-limit-stat ${rateLimit.rateLimitInfo.remaining <= 5 ? 'warning' : ''}`}>
+                  Remaining: {rateLimit.rateLimitInfo.remaining}
+                  {rateLimit.rateLimitInfo.limit ? `/${rateLimit.rateLimitInfo.limit}` : ''}
+                </span>
+              )}
+              {rateLimit.rateLimitInfo.reset && (
+                <span className="rate-limit-stat">
+                  Resets: {formatResetTime(rateLimit.rateLimitInfo.reset)}
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Pagination Bar */}
       {pagination.hasDetected && success && (
         <div className="pagination-bar">
           <div className="pagination-info">
-            <span className="pagination-label">Page</span>
+            <span className="pagination-label">Page {pagination.currentPage}</span>
             <button
               className="pagination-btn"
-              onClick={() => goToPage(pagination.currentPage - 1)}
-              disabled={pagination.currentPage <= 1 || isExecuting}
+              onClick={goToPrev}
+              disabled={!hasPrevPage || isExecuting}
               title="Previous page"
             >
               &larr; Prev
             </button>
-            <input
-              className="pagination-page-input"
-              type="number"
-              min="1"
-              value={pagination.currentPage}
-              onChange={(e) => {
-                const val = parseInt(e.target.value, 10);
-                if (val >= 1) setPagination({ currentPage: val });
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  goToPage(pagination.currentPage);
-                }
-              }}
-            />
+
+            {/* Only show page input for page-based mode */}
+            {!isCursorMode && (
+              <input
+                className="pagination-page-input"
+                type="number"
+                min="1"
+                value={pagination.currentPage}
+                onChange={(e) => {
+                  const val = parseInt(e.target.value, 10);
+                  if (val >= 1) setPagination({ currentPage: val });
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    goToPage(pagination.currentPage);
+                  }
+                }}
+              />
+            )}
+
             <button
               className="pagination-btn"
-              onClick={() => goToPage(pagination.currentPage + 1)}
-              disabled={isExecuting || (itemCount !== null && itemCount < pagination.perPage)}
+              onClick={goToNext}
+              disabled={!hasNextPage || isExecuting}
               title="Next page"
             >
               Next &rarr;
@@ -163,9 +245,19 @@ function ResponseViewer() {
           </div>
 
           <div className="pagination-params-hint">
-            <span className="pagination-detected">
-              Detected: <code>{pagination.pageParamName}</code> + <code>{pagination.perPageParamName}</code>
-            </span>
+            {isCursorMode ? (
+              <span className="pagination-detected cursor-mode">
+                Mode: <code>cursor</code>
+                {pagination.nextPageUrl && <span className="pagination-has-next"> (has next)</span>}
+                {!pagination.nextPageUrl && !pagination.nextCursor && pagination.currentPage > 1 && (
+                  <span className="pagination-last-page"> (last page)</span>
+                )}
+              </span>
+            ) : (
+              <span className="pagination-detected">
+                Detected: <code>{pagination.pageParamName}</code> + <code>{pagination.perPageParamName}</code>
+              </span>
+            )}
           </div>
         </div>
       )}
@@ -205,7 +297,12 @@ function ResponseViewer() {
       {/* Loading overlay */}
       {isExecuting && (
         <div className="loading-overlay">
-          <span className="pulse">Loading page {pagination.currentPage}...</span>
+          <span className="pulse">
+            {rateLimit.isWaiting
+              ? `Rate limited - waiting...`
+              : `Loading page ${pagination.currentPage}...`
+            }
+          </span>
         </div>
       )}
 
@@ -260,6 +357,17 @@ function formatBytes(bytes) {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1048576) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / 1048576).toFixed(1)} MB`;
+}
+
+function formatResetTime(resetTimestamp) {
+  // Could be epoch seconds or relative seconds
+  if (resetTimestamp > 1e9) {
+    // Epoch timestamp
+    const date = new Date(resetTimestamp * 1000);
+    const diff = Math.max(0, Math.round((date - Date.now()) / 1000));
+    return diff > 0 ? `${diff}s` : 'now';
+  }
+  return `${resetTimestamp}s`;
 }
 
 export default ResponseViewer;

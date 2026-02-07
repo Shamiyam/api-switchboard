@@ -887,6 +887,118 @@ body {
   font-family: var(--font-mono);
 }
 
+/* ── Rate Limit Bar (Input) ── */
+.rate-limit-bar {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 8px 16px;
+  background: var(--bg-tertiary);
+  border-top: 1px solid var(--border-color);
+  flex-shrink: 0;
+}
+
+.rate-limit-setting {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.rate-limit-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  font-family: var(--font-sans);
+  white-space: nowrap;
+}
+
+.rate-limit-select {
+  padding: 3px 8px;
+  background: var(--bg-input);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: 11px;
+  font-family: var(--font-mono);
+  outline: none;
+  cursor: pointer;
+}
+
+.rate-limit-select:focus {
+  border-color: var(--accent-primary);
+}
+
+.rate-limit-select option {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
+.rate-limit-setting input[type="checkbox"] {
+  accent-color: var(--accent-primary);
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
+}
+
+.rate-limit-hint {
+  font-size: 10px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+
+/* ── Rate Limit Info Bar (Response) ── */
+.rate-limit-info-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 16px;
+  background: rgba(252, 161, 48, 0.06);
+  border-bottom: 1px solid rgba(252, 161, 48, 0.2);
+  flex-shrink: 0;
+}
+
+.rate-limit-waiting {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent-orange);
+}
+
+.rate-limit-stats {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.rate-limit-stat {
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: var(--text-secondary);
+}
+
+.rate-limit-stat.warning {
+  color: var(--accent-orange);
+  font-weight: 700;
+}
+
+/* ── Cursor Pagination Indicators ── */
+.cursor-mode code {
+  background: rgba(123, 97, 255, 0.15);
+  color: var(--accent-secondary);
+}
+
+.pagination-has-next {
+  color: var(--accent-green);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.pagination-last-page {
+  color: var(--accent-orange);
+  font-size: 10px;
+  font-weight: 600;
+}
+
 /* ── Loading Overlay ── */
 .loading-overlay {
   display: flex;

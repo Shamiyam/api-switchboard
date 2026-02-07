@@ -58,18 +58,49 @@ const useAppStore = create((set, get) => ({
     perPage: 10,
     pageParamName: 'page',       // auto-detected or user-set
     perPageParamName: 'per_page', // auto-detected or user-set
-    hasDetected: false
+    hasDetected: false,
+    // Cursor-based pagination
+    mode: 'none',                // 'none' | 'page' | 'cursor'
+    nextCursor: null,            // next cursor URL or token
+    prevCursors: [],             // stack of previous cursor URLs for "Back" navigation
+    cursorParamName: null,       // e.g. 'since_id', 'cursor', 'after'
+    nextPageUrl: null,           // full URL for next page (e.g., Workable's paging.next)
   },
   setPagination: (updates) => set((state) => ({
     pagination: { ...state.pagination, ...updates }
   })),
   resetPagination: () => set({
-    pagination: { currentPage: 1, perPage: 10, pageParamName: 'page', perPageParamName: 'per_page', hasDetected: false }
+    pagination: {
+      currentPage: 1, perPage: 10, pageParamName: 'page', perPageParamName: 'per_page',
+      hasDetected: false, mode: 'none', nextCursor: null, prevCursors: [],
+      cursorParamName: null, nextPageUrl: null
+    }
   }),
 
   // Stored fetch function ref (set by CurlInput so ResponseViewer can call it for pagination)
   _fetchPageFn: null,
   setFetchPageFn: (fn) => set({ _fetchPageFn: fn }),
+
+  // ── Rate Limit State ──
+  rateLimit: {
+    delayMs: 500,          // delay between requests (ms)
+    retryOn429: true,       // auto-retry on 429 Too Many Requests
+    maxRetries: 3,          // max retry attempts on 429
+    retryCount: 0,          // current retry count
+    lastRequestTime: 0,     // timestamp of last request
+    rateLimitInfo: null,    // { limit, remaining, reset } from response headers
+    isWaiting: false,       // true when waiting for rate limit cooldown
+    waitUntil: null,        // timestamp when the wait ends
+  },
+  setRateLimit: (updates) => set((state) => ({
+    rateLimit: { ...state.rateLimit, ...updates }
+  })),
+  resetRateLimit: () => set({
+    rateLimit: {
+      delayMs: 500, retryOn429: true, maxRetries: 3, retryCount: 0,
+      lastRequestTime: 0, rateLimitInfo: null, isWaiting: false, waitUntil: null
+    }
+  }),
 
   // ── UI State ──
   activeTab: 'input', // 'input' | 'response' | 'export'
@@ -89,7 +120,15 @@ const useAppStore = create((set, get) => ({
     exportError: null,
     showExportModal: false,
     activeTab: 'input',
-    pagination: { currentPage: 1, perPage: 10, pageParamName: 'page', perPageParamName: 'per_page', hasDetected: false }
+    pagination: {
+      currentPage: 1, perPage: 10, pageParamName: 'page', perPageParamName: 'per_page',
+      hasDetected: false, mode: 'none', nextCursor: null, prevCursors: [],
+      cursorParamName: null, nextPageUrl: null
+    },
+    rateLimit: {
+      delayMs: 500, retryOn429: true, maxRetries: 3, retryCount: 0,
+      lastRequestTime: 0, rateLimitInfo: null, isWaiting: false, waitUntil: null
+    }
   })
 }));
 
