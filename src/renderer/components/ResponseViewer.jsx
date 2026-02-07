@@ -168,6 +168,15 @@ function ResponseViewer() {
               Bulk Transport All
             </button>
           )}
+          <button
+            className="btn btn-small btn-accent"
+            onClick={() => setShowBulkTransport(true)}
+            disabled={!success}
+            title="Read IDs from a sheet, call API per ID, merge results back"
+            style={{ marginLeft: '4px' }}
+          >
+            Enrich by ID
+          </button>
         </div>
       </div>
 

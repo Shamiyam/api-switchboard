@@ -137,6 +137,46 @@ const useAppStore = create((set, get) => ({
     }
   }),
 
+  // ── Enrichment State (Enrich by ID) ──
+  enrichment: {
+    isRunning: false,
+    isPaused: false,
+    isCancelled: false,
+    // Configuration
+    sourceSheetName: '',
+    keyColumn: 'id',
+    curlTemplate: '',
+    writeMode: 'merge',        // 'merge' (append columns to same sheet) | 'new' (write to new sheet)
+    destSheetName: '',
+    batchSize: 50,
+    // Progress tracking
+    totalIds: 0,
+    processedIds: 0,
+    currentId: '',
+    currentBatch: 0,
+    totalBatches: 0,
+    errors: [],
+    log: [],
+    startedAt: null,
+    completedAt: null,
+    // Resume support
+    lastProcessedIndex: 0,
+    idList: [],
+  },
+  setEnrichment: (updates) => set((state) => ({
+    enrichment: { ...state.enrichment, ...updates }
+  })),
+  resetEnrichment: () => set({
+    enrichment: {
+      isRunning: false, isPaused: false, isCancelled: false,
+      sourceSheetName: '', keyColumn: 'id', curlTemplate: '',
+      writeMode: 'merge', destSheetName: '', batchSize: 50,
+      totalIds: 0, processedIds: 0, currentId: '', currentBatch: 0,
+      totalBatches: 0, errors: [], log: [], startedAt: null, completedAt: null,
+      lastProcessedIndex: 0, idList: [],
+    }
+  }),
+
   // ── UI State ──
   activeTab: 'input', // 'input' | 'response' | 'export'
   setActiveTab: (tab) => set({ activeTab: tab }),
